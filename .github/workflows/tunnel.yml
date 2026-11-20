@@ -1,19 +1,38 @@
-name: Test Tunnel
+name: VLESS Auto Tunnel
 on:
   workflow_dispatch:
   schedule:
     - cron: '0 */4 * * *'
+
 jobs:
   tunnel:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     steps:
-      - name: Test cloudflared quick tunnel from Actions
+      - name: Install Xray + cloudflared
         run: |
-          curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-          chmod +x cloudflared
-          ./cloudflared tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:9999 > cf.log 2>&1 &
-          sleep 15
-          echo "=== URL ==="
-          grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' cf.log | head -1
-          echo "=== curl localhost:9999 (should fail, just checking origin) ==="
-          cat cf.log | tail -5
+          bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install --version 26.11.9 >/dev/null 2>&1
+          curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared
+          chmod +x /tmp/cloudflared
+          mkdir -p /tmp/vless
+          UUID="7a5dfe59-ea03-480d-a736-91db8ac2bb37"
+          cat > /tmp/vless/server.json <<JSON
+          {"log":{"loglevel":"warning"},"inbounds":[{"tag":"vless-in","listen":"127.0.0.1","port":4443,"protocol":"vless","settings":{"clients":[{"id":"$UUID","level":0}],"decryption":"none"},"streamSettings":{"network":"ws","wsSettings":{"path":"/vless"}},"sniffing":{"enabled":true,"destOverride":["http","tls"]}}],"outbounds":[{"tag":"direct","protocol":"freedom"}]}
+          JSON
+          xray run -c /tmp/vless/server.json >/tmp/vless/xray.log 2>&1 &
+          sleep 2
+          /tmp/cloudflared tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:4443 >/tmp/vless/cf.log 2>&1 &
+          echo "=== waiting for tunnel URL ==="
+          for i in $(seq 1 30); do
+            URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/vless/cf.log | head -1)
+            if [ -n "$URL" ]; then echo "TUNNEL_URL=$URL"; break; fi
+            sleep 2
+          done
+          echo "=== VLESS URI ==="
+          HOST=$(echo "$URL" | sed 's|https://||')
+          echo "vless://$UUID@$HOST:443?security=tls&type=ws&path=%2Fvless&host=$HOST&sni=$HOST&fp=chrome#%F0%9F%87%AB%F0%9F%87%B7%20AUTO"
+          echo "=== self-test through Xray client ==="
+          sleep 5
+          curl -sS --max-time 10 -o /dev/null -w 'origin_code=%{http_code}\n' "$URL/vless" || true
+          echo "=== keeping alive ==="
+          while true; do sleep 60; done
