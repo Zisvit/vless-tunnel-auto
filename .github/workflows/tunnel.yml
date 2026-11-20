@@ -36,5 +36,13 @@ jobs:
           echo "=== self-test through Xray client ==="
           sleep 5
           curl -sS --max-time 10 -o /dev/null -w 'origin_code=%{http_code}\n' "$URL/vless" || true
+          echo "=== publish to gist ==="
+          echo "$GH_PAT" | gh auth login --with-token 2>/dev/null || true
+          cat > /tmp/gist-content.txt <<CONTENT
+          TUNNEL_URL: $URL
+          VLESS_URI: vless://$UUID@$HOST:443?security=tls&type=ws&path=%2Fvless&host=$HOST&sni=$HOST&fp=chrome#%F0%9F%87%AB%F0%9F%87%B7%20AUTO
+          UPDATED: $(date -u)
+          CONTENT
+          gh gist edit d6a7b65c88272b04a184afcf49f276ca /tmp/gist-content.txt 2>&1 || true
           echo "=== keeping alive ==="
           while true; do sleep 60; done
