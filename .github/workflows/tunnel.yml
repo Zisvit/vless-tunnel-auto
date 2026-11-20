@@ -11,7 +11,9 @@ jobs:
     steps:
       - name: Install Xray + cloudflared
         run: |
-          bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install --version 26.11.9 >/dev/null 2>&1
+          curl -sL https://github.com/XTLS/Xray-core/releases/download/v26.11.9/Xray-linux-64.zip -o /tmp/xray.zip
+          unzip -oq /tmp/xray.zip -d /tmp/vless-bin
+          chmod +x /tmp/vless-bin/xray
           curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared
           chmod +x /tmp/cloudflared
           mkdir -p /tmp/vless
@@ -19,7 +21,7 @@ jobs:
           cat > /tmp/vless/server.json <<JSON
           {"log":{"loglevel":"warning"},"inbounds":[{"tag":"vless-in","listen":"127.0.0.1","port":4443,"protocol":"vless","settings":{"clients":[{"id":"$UUID","level":0}],"decryption":"none"},"streamSettings":{"network":"ws","wsSettings":{"path":"/vless"}},"sniffing":{"enabled":true,"destOverride":["http","tls"]}}],"outbounds":[{"tag":"direct","protocol":"freedom"}]}
           JSON
-          xray run -c /tmp/vless/server.json >/tmp/vless/xray.log 2>&1 &
+          /tmp/vless-bin/xray run -c /tmp/vless/server.json >/tmp/vless/xray.log 2>&1 &
           sleep 2
           /tmp/cloudflared tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:4443 >/tmp/vless/cf.log 2>&1 &
           echo "=== waiting for tunnel URL ==="
