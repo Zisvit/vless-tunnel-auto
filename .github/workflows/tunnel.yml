@@ -1,0 +1,19 @@
+name: Test Tunnel
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */4 * * *'
+jobs:
+  tunnel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test cloudflared quick tunnel from Actions
+        run: |
+          curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+          ./cloudflared tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:9999 > cf.log 2>&1 &
+          sleep 15
+          echo "=== URL ==="
+          grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' cf.log | head -1
+          echo "=== curl localhost:9999 (should fail, just checking origin) ==="
+          cat cf.log | tail -5
