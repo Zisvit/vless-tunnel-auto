@@ -4,10 +4,14 @@ on:
   schedule:
     - cron: '0 */4 * * *'
 
+concurrency:
+  group: vless-tunnel
+  cancel-in-progress: true
+
 jobs:
   tunnel:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 230
     steps:
       - name: Install Xray + cloudflared
         env:
